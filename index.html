@@ -7,7 +7,22 @@
 		Lua test:
 		<br>
 		<?lua
-			print("Hello, world!")
+			local foo = 5
+			if foo == 5 then
+				print("Hello, world! Foo is 5.")
+			else
+				print("Hi. Actually, foo is not 5.")
+			end
+		?>
+		<br><br>
+		Another test:
+		<br>
+		<?lua
+			if foo == 5 then
+				print("Foo is still 5. :)")
+			else
+				print("Foo is no longer 5. :(")
+			end
 		?>
 	</body>
 </html>
