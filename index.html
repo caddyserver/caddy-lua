@@ -1,3 +1,4 @@
+<?lua start = os.clock() ?>
 <!DOCTYPE html>
 <html>
 	<head>
@@ -7,7 +8,7 @@
 		Lua test:
 		<br>
 		<?lua
-			local foo = 5
+			foo = 5
 			if foo == 5 then
 				print("Hello, world! Foo is 5.")
 			else
@@ -24,5 +25,19 @@
 				print("Foo is no longer 5. :(")
 			end
 		?>
+
+		<br><br>
+		Speed test...
+		<br>
+
+		<?lua
+			for i=1,100000 do
+				string.format("Value of i: %d<br>", i)
+			end
+		?>
+
+		<br><hr>
+
+		<?lua print(string.format("Rendered in %.3fms", (os.clock() - start) * 1000)) ?>
 	</body>
 </html>
