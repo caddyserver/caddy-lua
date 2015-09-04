@@ -18,7 +18,7 @@ import (
 func Setup(c *setup.Controller) (middleware.Middleware, error) {
 	root := c.Root
 
-	rules, err := parse(c)
+	rules, err := parseLuaCaddyfile(c)
 	if err != nil {
 		return nil, err
 	}
@@ -65,18 +65,30 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) 
 		}
 		defer file.Close()
 
-		contents, err := ioutil.ReadAll(file)
+		input, err := ioutil.ReadAll(file)
 		if err != nil {
 			return http.StatusInternalServerError, err
 		}
 
-		var out bytes.Buffer
-		if err := Interpret(&out, contents); err != nil {
+		L := lua.NewState()
+		defer L.Close()
+		ctx := NewContext(L, w)
+
+		if err := Interpret(L, input, &ctx.out); err != nil {
+			fmt.Println(err)
 			return http.StatusInternalServerError, err
 		}
 
+		for _, f := range ctx.callbacks {
+			err := f()
+			if err != nil {
+				// TODO
+				fmt.Println(err)
+			}
+		}
+
 		// Write the combined text to the http.ResponseWriter
-		w.Write(out.Bytes())
+		w.Write(ctx.out.Bytes())
 
 		return http.StatusOK, nil
 	}
@@ -87,36 +99,8 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) 
 // Interpret reads a source, executes any Lua, and writes the results.
 //
 // This assumes that the reader has Lua embedded in `<?lua ... ?>` sections.
-func Interpret(out io.Writer, src []byte) error {
-	L := lua.NewState()
-	defer L.Close()
-
-	var luaOut bytes.Buffer
+func Interpret(L *lua.LState, src []byte, out io.Writer) error {
 	var luaIn bytes.Buffer
-
-	// TODO: If a user uses any concurrent processing here, do we
-	// need to add a lock to the buffer?
-	L.SetGlobal("print", L.NewFunction(func(L *lua.LState) int {
-		top := L.GetTop()
-		for i := 1; i <= top; i++ {
-			luaOut.WriteString(L.Get(i).String())
-			if i != top {
-				luaOut.WriteString(" ")
-			}
-		}
-		return 0
-	}))
-	L.SetGlobal("println", L.NewFunction(func(L *lua.LState) int {
-		top := L.GetTop()
-		for i := 1; i <= top; i++ {
-			luaOut.WriteString(L.Get(i).String())
-			if i != top {
-				luaOut.WriteString(" ")
-			}
-		}
-		luaOut.WriteString("\n")
-		return 0
-	}))
 
 	inCode := false
 	line := 1
@@ -126,16 +110,16 @@ func Interpret(out io.Writer, src []byte) error {
 		}
 		if inCode {
 			if isEnd(i, src) {
-				//fmt.Println("Sending to Lua interpreter:", luaIn.String())
 				i++ // Skip two characters: ? and >
 				if err := L.DoString(luaIn.String()); err != nil {
 					// TODO: Need to make it easy to tell that this is a
 					// parse error.
+					// Issue opened upstream:
+					// https://github.com/yuin/gopher-lua/issues/46
+					// BUG: Line number is not always correct; we need it from the Lua engine.
 					return fmt.Errorf("Lua Error (Line %d): %s", line, err)
 				}
-				out.Write(luaOut.Bytes())
 				luaIn.Reset()
-				luaOut.Reset()
 				inCode = false
 			} else {
 				luaIn.WriteByte(src[i])
@@ -153,13 +137,11 @@ func Interpret(out io.Writer, src []byte) error {
 	// Handle the case where a file ends inside of a <?lua block.
 	// Mimic PHP's behavior.
 	if inCode && luaIn.Len() > 0 {
-		fmt.Printf("sending to Lua interpreter: %s", luaIn.String())
 		if err := L.DoString(luaIn.String()); err != nil {
 			// TODO: Need to make it easy to tell that this is a
 			// parse error.
 			return fmt.Errorf("Lua Error (Line %d): %s", line, err)
 		}
-		out.Write(luaOut.Bytes())
 	}
 
 	return nil
@@ -189,7 +171,7 @@ func isEnd(start int, slice []byte) bool {
 	return false
 }
 
-func parse(c *setup.Controller) ([]Rule, error) {
+func parseLuaCaddyfile(c *setup.Controller) ([]Rule, error) {
 	var rules []Rule
 
 	for c.Next() {

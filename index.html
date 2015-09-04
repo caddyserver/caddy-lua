@@ -1,4 +1,4 @@
-<?lua start = os.clock() ?>
+<?lua require "clock" ?>
 <!DOCTYPE html>
 <html>
 	<head>
@@ -6,7 +6,6 @@
 	</head>
 	<body>
 		Lua test:
-		<br>
 		<?lua
 			foo = 5
 			if foo == 5 then
@@ -15,9 +14,10 @@
 				print("Hi. Actually, foo is not 5.")
 			end
 		?>
+		
 		<br><br>
+
 		Another test:
-		<br>
 		<?lua
 			if foo == 5 then
 				print("Foo is still 5. :)")
@@ -27,14 +27,18 @@
 		?>
 
 		<br><br>
-		Speed test...
-		<br>
 
+		Speed test (format string a lot of times)...
 		<?lua
-			for i=1,100000 do
+			for i=1,10000 do
 				string.format("Value of i: %d<br>", i)
 			end
 		?>
+		
+		<br><br>
+
+		Finally, setting status code to something other than 200.
+		<?lua response.status(400) ?>
 
 		<br><hr>
 

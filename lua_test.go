@@ -1,8 +1,9 @@
 package lua
 
 import (
-	"bytes"
 	"testing"
+
+	"github.com/yuin/gopher-lua"
 )
 
 var luaMap = map[string]string{
@@ -12,15 +13,17 @@ var luaMap = map[string]string{
 
 func TestInterpret(t *testing.T) {
 	for script, expect := range luaMap {
-		var out bytes.Buffer
+		L := lua.NewState()
+		ctx := NewContext(L, nil)
 		in := []byte(script)
 
-		if err := Interpret(&out, in); err != nil {
+		if err := Interpret(L, in, &ctx.out); err != nil {
 			t.Errorf("Error on interpret: %s", err)
 		}
 
-		if out.String() != expect {
-			t.Errorf("Expected '%s', got '%s'", expect, out.String())
+		if ctx.out.String() != expect {
+			t.Errorf("Expected '%s', got '%s'", expect, ctx.out.String())
 		}
+		L.Close()
 	}
 }
