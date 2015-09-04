@@ -104,6 +104,16 @@ func Interpret(out io.Writer, src []byte) error {
 				luaOut.WriteString(" ")
 			}
 		}
+		return 0
+	}))
+	L.SetGlobal("println", L.NewFunction(func(L *lua.LState) int {
+		top := L.GetTop()
+		for i := 1; i <= top; i++ {
+			luaOut.WriteString(L.Get(i).String())
+			if i != top {
+				luaOut.WriteString(" ")
+			}
+		}
 		luaOut.WriteString("\n")
 		return 0
 	}))
