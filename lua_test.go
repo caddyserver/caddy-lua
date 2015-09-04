@@ -27,3 +27,6 @@ func TestInterpret(t *testing.T) {
 		L.Close()
 	}
 }
+
+func TestImport(t *testing.T) {
+}
