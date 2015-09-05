@@ -13,6 +13,7 @@ import (
 	"github.com/mholt/caddy/middleware"
 	"github.com/mholt/caddy/middleware/browse"
 	"github.com/yuin/gopher-lua"
+	"github.com/yuin/gopher-lua/parse"
 )
 
 func Setup(c *setup.Controller) (middleware.Middleware, error) {
@@ -53,8 +54,8 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) 
 		}
 
 		// TODO: Check extension. If .lua, assume whole file is Lua script.
-
-		file, err := h.FileSys.Open(filepath.Join(h.Root, fpath))
+		fileName := filepath.Join(h.Root, fpath)
+		file, err := h.FileSys.Open(fileName)
 		if err != nil {
 			if os.IsNotExist(err) {
 				return http.StatusNotFound, nil
@@ -75,8 +76,23 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) 
 		ctx := NewContext(L, w)
 
 		if err := Interpret(L, input, &ctx.out); err != nil {
-			fmt.Println(err)
-			return http.StatusInternalServerError, err
+			var errReport error
+
+			ierr := err.(interpretationError)
+			if lerr, ok := ierr.err.(*lua.ApiError); ok {
+				switch cause := lerr.Cause.(type) {
+				case *parse.Error:
+					errReport = fmt.Errorf("%s:%d (col %d): Syntax error near '%s'", fileName,
+						cause.Pos.Line+ierr.lineOffset, cause.Pos.Column, cause.Token)
+				case *lua.CompileError:
+					errReport = fmt.Errorf("%s:%d: %s", fileName,
+						cause.Line+ierr.lineOffset, cause.Message)
+				default:
+					errReport = fmt.Errorf("%s: %s", fileName, cause.Error())
+				}
+			}
+
+			return http.StatusInternalServerError, errReport
 		}
 
 		for _, f := range ctx.callbacks {
@@ -96,6 +112,15 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) 
 	return h.Next.ServeHTTP(w, r)
 }
 
+type interpretationError struct {
+	err        error
+	lineOffset int
+}
+
+func (e interpretationError) Error() string {
+	return e.err.Error()
+}
+
 // Interpret reads a source, executes any Lua, and writes the results.
 //
 // This assumes that the reader has Lua embedded in `<?lua ... ?>` sections.
@@ -103,7 +128,7 @@ func Interpret(L *lua.LState, src []byte, out io.Writer) error {
 	var luaIn bytes.Buffer
 
 	inCode := false
-	line := 1
+	line, luaStartLine := 0, 0
 	for i := 0; i < len(src); i++ {
 		if src[i] == '\n' {
 			line++
@@ -111,13 +136,8 @@ func Interpret(L *lua.LState, src []byte, out io.Writer) error {
 		if inCode {
 			if isEnd(i, src) {
 				i++ // Skip two characters: ? and >
-				if err := L.DoString(luaIn.String()); err != nil {
-					// TODO: Need to make it easy to tell that this is a
-					// parse error.
-					// Issue opened upstream:
-					// https://github.com/yuin/gopher-lua/issues/46
-					// BUG: Line number is not always correct; we need it from the Lua engine.
-					return fmt.Errorf("Lua Error (Line %d): %s", line, err)
+				if err := executeLua(L, &luaIn); err != nil {
+					return interpretationError{err: err, lineOffset: luaStartLine}
 				}
 				luaIn.Reset()
 				inCode = false
@@ -128,6 +148,7 @@ func Interpret(L *lua.LState, src []byte, out io.Writer) error {
 			if isStart(i, src) {
 				i += 4
 				inCode = true
+				luaStartLine = line
 			} else if _, err := out.Write([]byte{src[i]}); err != nil {
 				return err
 			}
@@ -137,14 +158,32 @@ func Interpret(L *lua.LState, src []byte, out io.Writer) error {
 	// Handle the case where a file ends inside of a <?lua block.
 	// Mimic PHP's behavior.
 	if inCode && luaIn.Len() > 0 {
-		if err := L.DoString(luaIn.String()); err != nil {
+		if err := executeLua(L, &luaIn); err != nil {
 			// TODO: Need to make it easy to tell that this is a
 			// parse error.
-			return fmt.Errorf("Lua Error (Line %d): %s", line, err)
+			return interpretationError{err: err, lineOffset: luaStartLine}
 		}
 	}
 
 	return nil
+}
+
+func executeLua(L *lua.LState, input io.Reader) error {
+	fn, err := L.Load(input, "<TODO>")
+	if err != nil {
+		return err
+	}
+
+	L.Push(fn)
+	return L.PCall(0, lua.MultRet, L.NewFunction(func(L *lua.LState) int {
+		// TODO: Clean up error handling here
+		obj := L.Get(1)
+		dbg, _ := L.GetStack(1)
+		L.GetInfo("Slunf", dbg, lua.LNil)
+		fmt.Println("Runtime error:", obj.String())
+		fmt.Println("Line:", dbg.CurrentLine)
+		return 1 // returns the original object
+	}))
 }
 
 var startSeq = []byte{'<', '?', 'l', 'u', 'a'}
