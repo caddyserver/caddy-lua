@@ -3,8 +3,11 @@ package lua
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"net/http"
+	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/yuin/gopher-lua"
 )
@@ -17,6 +20,7 @@ func NewContext(L *lua.LState, rw http.ResponseWriter) *Context {
 	// Global functions
 	L.SetGlobal("print", L.NewFunction(global.print))
 	L.SetGlobal("println", L.NewFunction(global.println))
+	L.SetGlobal("import", L.NewFunction(global.limport))
 
 	// Global types and their fields
 	responseMt := L.NewTypeMetatable("response")
@@ -50,6 +54,26 @@ func (c *Context) print(L *lua.LState) int {
 func (c *Context) println(L *lua.LState) int {
 	c.print(L)
 	c.out.WriteString("\n")
+	return 0
+}
+
+// limport imports Lua markup files.
+func (c *Context) limport(L *lua.LState) int {
+	path := L.Get(1).String()
+
+	if strings.ToLower(filepath.Ext(path)) == ".lua" {
+		fmt.Println("TODO: Call doimport instead.")
+	}
+
+	data, err := ioutil.ReadFile(path)
+	if err != nil {
+		// TODO: How do we handle this correctly?
+		fmt.Printf("Failed to import '%s': %s\n", path, err)
+		return 0
+	}
+
+	Interpret(L, data, &c.out)
+
 	return 0
 }
 

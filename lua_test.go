@@ -1,6 +1,7 @@
 package lua
 
 import (
+	"io/ioutil"
 	"testing"
 
 	"github.com/yuin/gopher-lua"
@@ -29,4 +30,18 @@ func TestInterpret(t *testing.T) {
 }
 
 func TestImport(t *testing.T) {
+	L := lua.NewState()
+	defer L.Close()
+	ctx := NewContext(L, nil)
+
+	in, err := ioutil.ReadFile("./testdata/outer.lim")
+	if err != nil {
+		t.Errorf("failed to load outer.lim")
+		return
+	}
+
+	if err := Interpret(L, in, &ctx.out); err != nil {
+		t.Errorf("Failed to interpret: %s", err)
+	}
+	t.Logf("output: %s", ctx.out.String())
 }
