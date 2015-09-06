@@ -8,8 +8,8 @@ import (
 )
 
 var luaMap = map[string]string{
-	`Hello <?lua print("world");?>`:                                               "Hello world",
-	`<html><?lua print("First");?><br><?lua print("Second")?><?lua print "Third"`: `<html>First<br>SecondThird`,
+	`Hello <?lua write("world");?>`:                                               "Hello world",
+	`<html><?lua write("First");?><br><?lua write("Second")?><?lua write "Third"`: `<html>First<br>SecondThird`,
 	`<?lua for i = 1, 3, 1 do ?>Hello<?lua end ?>`:                                "HelloHelloHello",
 	"[[test]]": "[[test]]",
 }

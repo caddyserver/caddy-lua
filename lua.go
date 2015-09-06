@@ -188,7 +188,7 @@ func Interpret(L *lua.LState, src []byte, out io.Writer) error {
 // inlineText takes some non-Lua text and inlines it into Lua code.
 func inlineText(b, luaIn *bytes.Buffer) {
 	openl := `__buf__ = string.gsub([[`
-	closel := `]], "&lualb;", "]");print(__buf__); __buf__ = nil`
+	closel := `]], "&lualb;", "]");write(__buf__); __buf__ = nil`
 	luaIn.WriteString(openl)
 	luaIn.Write(b.Bytes())
 	luaIn.WriteString(closel)

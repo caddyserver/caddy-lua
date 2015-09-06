@@ -19,8 +19,8 @@ func NewContext(L *lua.LState, rw http.ResponseWriter) *Context {
 	global := &Context{rw: rw}
 
 	// Global functions
+	L.SetGlobal("write", L.NewFunction(global.write))
 	L.SetGlobal("print", L.NewFunction(global.print))
-	L.SetGlobal("println", L.NewFunction(global.println))
 	L.SetGlobal("include", L.NewFunction(global.include))
 
 	// Logging facility
@@ -77,9 +77,11 @@ type Context struct {
 	rw        http.ResponseWriter
 }
 
-// print writes to the out buffer (not stdout).
-// Example: print("foo", "bar")
-func (c *Context) print(L *lua.LState) int {
+// write writes to the out buffer (not stdout).
+//
+// write does not append a trailing newline.
+// Example: write("foo", "bar")
+func (c *Context) write(L *lua.LState) int {
 	top := L.GetTop()
 	for i := 1; i <= top; i++ {
 		c.out.WriteString(L.Get(i).String())
@@ -90,10 +92,10 @@ func (c *Context) print(L *lua.LState) int {
 	return 0
 }
 
-// println writes to the out buffer with a trailing newline.
-// Example: println("foo", "bar")
-func (c *Context) println(L *lua.LState) int {
-	c.print(L)
+// print writes to the out buffer with a trailing newline.
+// Example: print("foo", "bar")
+func (c *Context) print(L *lua.LState) int {
+	c.write(L)
 	c.out.WriteString("\n")
 	return 0
 }
