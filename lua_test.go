@@ -10,6 +10,8 @@ import (
 var luaMap = map[string]string{
 	`Hello <?lua print("world");?>`:                                               "Hello world",
 	`<html><?lua print("First");?><br><?lua print("Second")?><?lua print "Third"`: `<html>First<br>SecondThird`,
+	`<?lua for i = 1, 3, 1 do ?>Hello<?lua end ?>`:                                "HelloHelloHello",
+	"[[test]]": "[[test]]",
 }
 
 func TestInterpret(t *testing.T) {
@@ -57,8 +59,9 @@ func TestIncludeError(t *testing.T) {
 		return
 	}
 
-	if err := Interpret(L, in, &ctx.out); err != nil {
-		t.Errorf("Failed to interpret: %s", err)
+	t.Log("Expecting an error whose message we can't surpress.")
+	if err := Interpret(L, in, &ctx.out); err == nil {
+		t.Error("Expected include_error.lim to produce an error")
 	}
 	t.Logf("output: %s", ctx.out.String())
 }

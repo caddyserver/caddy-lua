@@ -125,7 +125,21 @@ func (e interpretationError) Error() string {
 //
 // This assumes that the reader has Lua embedded in `<?lua ... ?>` sections.
 func Interpret(L *lua.LState, src []byte, out io.Writer) error {
-	var luaIn bytes.Buffer
+	// NOTE: There are several ways we could walk a lim source file and
+	// generate code. We opted for the route of converting non-Lua text
+	// into Lua code. Basically, code outside of <?lua ... ?> sections is
+	// converted into calls to print(). This provides the advantage of
+	// being able to embed loops and conditionals into lim files, but does
+	// not incur the overhead of working directly with a Lua parse tree.
+	//
+	// Lua's heredoc syntax uses [[ and ]] as delimiters, so we escape
+	// ] characters when creating the strings, and then replace them
+	// latter.
+	var luaIn, pbuf bytes.Buffer
+
+	// We have to encode ] into &lualb; to prevent heredocs from breaking
+	// when we inline text.
+	lent := "&lualb;"
 
 	inCode := false
 	line, luaStartLine := 0, 0
@@ -136,10 +150,6 @@ func Interpret(L *lua.LState, src []byte, out io.Writer) error {
 		if inCode {
 			if isEnd(i, src) {
 				i++ // Skip two characters: ? and >
-				if err := executeLua(L, &luaIn); err != nil {
-					return interpretationError{err: err, lineOffset: luaStartLine}
-				}
-				luaIn.Reset()
 				inCode = false
 			} else {
 				luaIn.WriteByte(src[i])
@@ -149,23 +159,37 @@ func Interpret(L *lua.LState, src []byte, out io.Writer) error {
 				i += 4
 				inCode = true
 				luaStartLine = line
-			} else if _, err := out.Write([]byte{src[i]}); err != nil {
-				return err
+				if pbuf.Len() > 0 {
+					inlineText(&pbuf, &luaIn)
+				}
+				pbuf.Reset()
+			} else if src[i] == ']' {
+				pbuf.WriteString(lent)
+			} else {
+				pbuf.WriteByte(src[i])
 			}
 		}
 	}
 
-	// Handle the case where a file ends inside of a <?lua block.
-	// Mimic PHP's behavior.
-	if inCode && luaIn.Len() > 0 {
-		if err := executeLua(L, &luaIn); err != nil {
-			// TODO: Need to make it easy to tell that this is a
-			// parse error.
-			return interpretationError{err: err, lineOffset: luaStartLine}
-		}
+	if !inCode && pbuf.Len() > 0 {
+		inlineText(&pbuf, &luaIn)
+	}
+
+	// FIXME: MPB: Line count will now be off.
+	if err := executeLua(L, &luaIn); err != nil {
+		return interpretationError{err: err, lineOffset: luaStartLine}
 	}
 
 	return nil
+}
+
+// inlineText takes some non-Lua text and inlines it into Lua code.
+func inlineText(b, luaIn *bytes.Buffer) {
+	openl := `__buf__ = string.gsub([[`
+	closel := `]], "&lualb;", "]");print(__buf__); __buf__ = nil`
+	luaIn.WriteString(openl)
+	luaIn.Write(b.Bytes())
+	luaIn.WriteString(closel)
 }
 
 func executeLua(L *lua.LState, input io.Reader) error {
