@@ -142,7 +142,8 @@ func Interpret(L *lua.LState, src []byte, out io.Writer) error {
 	lent := "&lualb;"
 
 	inCode := false
-	line, luaStartLine := 0, 0
+	//line, luaStartLine := 0, 0
+	line := 0
 	for i := 0; i < len(src); i++ {
 		if src[i] == '\n' {
 			line++
@@ -158,7 +159,7 @@ func Interpret(L *lua.LState, src []byte, out io.Writer) error {
 			if isStart(i, src) {
 				i += 4
 				inCode = true
-				luaStartLine = line
+				//luaStartLine = line
 				if pbuf.Len() > 0 {
 					inlineText(&pbuf, &luaIn)
 				}
@@ -175,9 +176,10 @@ func Interpret(L *lua.LState, src []byte, out io.Writer) error {
 		inlineText(&pbuf, &luaIn)
 	}
 
-	// FIXME: MPB: Line count will now be off.
+	// FIXME: MPB: Test line count. The generated Lua should have the same
+	// line numbers as the source file.
 	if err := executeLua(L, &luaIn); err != nil {
-		return interpretationError{err: err, lineOffset: luaStartLine}
+		return interpretationError{err: err, lineOffset: 0}
 	}
 
 	return nil
@@ -193,7 +195,7 @@ func inlineText(b, luaIn *bytes.Buffer) {
 }
 
 func executeLua(L *lua.LState, input io.Reader) error {
-	fn, err := L.Load(input, "<TODO>")
+	fn, err := L.Load(input, "<Caddy-Lua>")
 	if err != nil {
 		return err
 	}

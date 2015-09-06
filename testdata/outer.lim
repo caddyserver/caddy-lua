@@ -1,0 +1,5 @@
+<?lua
+include("testdata/inner.lim")
+
+print("World")
+?>Bye

@@ -16,3 +16,12 @@ The same file may be included multiple times using this method.
 
 `dofile(filename)`: Include and execute a file that contains _only_ Lua
 code. `<?lua` is not required or supported in these files.
+
+## Logging
+
+The `log` module contains the following methods:
+
+- `info(msg, [param...])`: Log an informational message.
+- `debug(msg, [param...])`: Log a debug message.
+- `warn(msg, [param...])`: Log a warning message.
+- `error(msg, [param...])`: Log an error message.
