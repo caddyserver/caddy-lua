@@ -5,6 +5,7 @@ package session
 
 import (
 	"errors"
+	"net/http"
 	"sync"
 	"time"
 
@@ -32,6 +33,9 @@ type Cache interface {
 	Expire()
 }
 
+// The Cookie name for a Session.
+const SessionKey = "SESSION"
+
 var (
 	// ErrExpired indicates that a cache entry has expired, but has
 	// not been pruned yet.
@@ -47,7 +51,7 @@ var (
 // DefaultDuration controls the default session duration. Note that
 // individual sessions can alter their expiration time. There is no way
 // to set a session to never expire.
-var DefaultDuration = time.Minute * 5
+var DefaultDuration time.Duration = time.Minute * 5
 
 // New creates a new MemoryCache session cache.
 //
@@ -185,4 +189,23 @@ type Session struct {
 // An invalid session may be garbage collected.
 func (s *Session) Valid() bool {
 	return !time.Now().After(s.Expires)
+}
+
+// Cookie generates an HTTP cookie representing this session.
+//
+// This does not set Path or Domain, nor does it turn on Secure or HttpOnly.
+//
+// MaxAge is automatically set to 0 (delete) if Valid returns false. Otherwise
+// it sets the MaxAge at the default duration.
+func (s *Session) Cookie() *http.Cookie {
+	ma := 0
+	if s.Valid() {
+		ma = int(DefaultDuration.Seconds())
+	}
+	return &http.Cookie{
+		Name:    SessionKey,
+		Value:   s.Id,
+		Expires: s.Expires,
+		MaxAge:  ma,
+	}
 }
