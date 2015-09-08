@@ -1,4 +1,4 @@
-package lua
+package interpreter
 
 import (
 	"bytes"
@@ -7,35 +7,6 @@ import (
 
 	"github.com/yuin/gopher-lua"
 )
-
-// runLuaTest is a utility for running a piece of code and getting a result.
-//
-// It bootstraps a pristine Lua environment each time, and loads the standard
-// context.
-//
-// If the lim parameter is set to true, this will first send the code
-// thorugh the Interpret function.
-func runLuaTest(code string, out *bytes.Buffer, lim bool) error {
-	L := lua.NewState()
-	defer L.Close()
-	ctx := NewContext(L, nil)
-	ctx.out = *out
-	if lim {
-		if err := Interpret(L, []byte(code), &ctx.out); err != nil {
-			return err
-		}
-		return nil
-	} else if err := L.DoString(code); err != nil {
-		return err
-	}
-
-	for _, f := range ctx.callbacks {
-		if err := f(); err != nil {
-			return err
-		}
-	}
-	return nil
-}
 
 func TestLogger(t *testing.T) {
 	tests := map[string]string{
@@ -61,4 +32,33 @@ func TestLogger(t *testing.T) {
 		}
 		out.Reset()
 	}
+}
+
+// runLuaTest is a utility for running a piece of code and getting a result.
+//
+// It bootstraps a pristine Lua environment each time, and loads the standard
+// context.
+//
+// If the lim parameter is set to true, this will first send the code
+// thorugh the Interpret function.
+func runLuaTest(code string, out *bytes.Buffer, lim bool) error {
+	L := lua.NewState()
+	defer L.Close()
+	ctx := NewContext(L, nil)
+	ctx.Out = *out
+	if lim {
+		if err := Interpret(L, []byte(code), &ctx.Out); err != nil {
+			return err
+		}
+		return nil
+	} else if err := L.DoString(code); err != nil {
+		return err
+	}
+
+	for _, f := range ctx.Callbacks {
+		if err := f(); err != nil {
+			return err
+		}
+	}
+	return nil
 }

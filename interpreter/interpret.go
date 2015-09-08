@@ -1,4 +1,4 @@
-package lua
+package interpreter
 
 import (
 	"bytes"
@@ -8,13 +8,13 @@ import (
 	"github.com/yuin/gopher-lua"
 )
 
-type interpretationError struct {
-	err        error
-	lineOffset int
+type InterpretationError struct {
+	Err        error
+	LineOffset int
 }
 
-func (e interpretationError) Error() string {
-	return e.err.Error()
+func (e InterpretationError) Error() string {
+	return e.Err.Error()
 }
 
 // Interpret reads a source, executes any Lua, and writes the results.
@@ -38,7 +38,6 @@ func Interpret(L *lua.LState, src []byte, out io.Writer) error {
 	lent := "&lualb;"
 
 	inCode := false
-	//line, luaStartLine := 0, 0
 	line := 0
 	for i := 0; i < len(src); i++ {
 		if src[i] == '\n' {
@@ -55,7 +54,6 @@ func Interpret(L *lua.LState, src []byte, out io.Writer) error {
 			if isStart(i, src) {
 				i += 4
 				inCode = true
-				//luaStartLine = line
 				if pbuf.Len() > 0 {
 					inlineText(&pbuf, &luaIn)
 				}
@@ -75,7 +73,7 @@ func Interpret(L *lua.LState, src []byte, out io.Writer) error {
 	// FIXME: MPB: Test line count. The generated Lua should have the same
 	// line numbers as the source file.
 	if err := executeLua(L, &luaIn); err != nil {
-		return interpretationError{err: err, lineOffset: 0}
+		return InterpretationError{Err: err, LineOffset: 0}
 	}
 
 	return nil
@@ -84,7 +82,7 @@ func Interpret(L *lua.LState, src []byte, out io.Writer) error {
 // inlineText takes some non-Lua text and inlines it into Lua code.
 func inlineText(b, luaIn *bytes.Buffer) {
 	openl := `__buf__ = string.gsub([[`
-	closel := `]], "&lualb;", "]");write(__buf__); __buf__ = nil`
+	closel := `]], "&lualb;", "]"); write(__buf__); __buf__ = nil;`
 	luaIn.WriteString(openl)
 	luaIn.Write(b.Bytes())
 	luaIn.WriteString(closel)

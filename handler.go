@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/caddyserver/caddy-lua/interpreter"
 	"github.com/mholt/caddy/middleware"
 	"github.com/mholt/caddy/middleware/browse"
 	"github.com/yuin/gopher-lua"
@@ -52,20 +53,20 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) 
 
 		L := lua.NewState()
 		defer L.Close()
-		ctx := NewContext(L, w)
+		ctx := interpreter.NewContext(L, w)
 
-		if err := Interpret(L, input, &ctx.out); err != nil {
+		if err := interpreter.Interpret(L, input, &ctx.Out); err != nil {
 			var errReport error
 
-			ierr := err.(interpretationError)
-			if lerr, ok := ierr.err.(*lua.ApiError); ok {
+			ierr := err.(interpreter.InterpretationError)
+			if lerr, ok := ierr.Err.(*lua.ApiError); ok {
 				switch cause := lerr.Cause.(type) {
 				case *parse.Error:
 					errReport = fmt.Errorf("%s:%d (col %d): Syntax error near '%s'", fileName,
-						cause.Pos.Line+ierr.lineOffset, cause.Pos.Column, cause.Token)
+						cause.Pos.Line+ierr.LineOffset, cause.Pos.Column, cause.Token)
 				case *lua.CompileError:
 					errReport = fmt.Errorf("%s:%d: %s", fileName,
-						cause.Line+ierr.lineOffset, cause.Message)
+						cause.Line+ierr.LineOffset, cause.Message)
 				default:
 					errReport = fmt.Errorf("%s: %s", fileName, cause.Error())
 				}
@@ -74,7 +75,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) 
 			return http.StatusInternalServerError, errReport
 		}
 
-		for _, f := range ctx.callbacks {
+		for _, f := range ctx.Callbacks {
 			err := f()
 			if err != nil {
 				// TODO
@@ -83,7 +84,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) 
 		}
 
 		// Write the combined text to the http.ResponseWriter
-		w.Write(ctx.out.Bytes())
+		w.Write(ctx.Out.Bytes())
 
 		return http.StatusOK, nil
 	}
