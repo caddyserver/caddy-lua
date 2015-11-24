@@ -3,7 +3,7 @@ package lua
 import (
 	"net/http"
 
-	"github.com/mholt/caddy/config/setup"
+	"github.com/mholt/caddy/caddy/setup"
 	"github.com/mholt/caddy/middleware"
 )
 
