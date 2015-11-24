@@ -9,7 +9,6 @@ import (
 
 	"github.com/caddyserver/caddy-lua/interpreter"
 	"github.com/mholt/caddy/middleware"
-	"github.com/mholt/caddy/middleware/browse"
 	"github.com/yuin/gopher-lua"
 	"github.com/yuin/gopher-lua/parse"
 )
@@ -29,7 +28,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) 
 
 		// Check for index file
 		fpath := r.URL.Path
-		if idx, ok := middleware.IndexFile(h.FileSys, fpath, browse.IndexPages); ok {
+		if idx, ok := middleware.IndexFile(h.FileSys, fpath, middleware.IndexPages); ok {
 			fpath = idx
 		}
 
